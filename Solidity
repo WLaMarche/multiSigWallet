@@ -1,0 +1,113 @@
+pragma solidity 0.7.5;
+pragma abicoder v2;
+
+import "./DestroyWallet.sol";
+
+//copy and paste these addresses for "owners" upon deployment & make limit = 2
+//["0x5B38Da6a701c568545dCfcB03FcB875f56beddC4", "0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2", "0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db"]
+
+contract Wallet is DestroyWallet {
+    
+    uint limit;
+    
+    struct Transfer{
+        uint amount;
+        address fromPerson;
+        address payable receiver;
+        uint approvals;
+        bool hasBeenSent;
+        uint id;
+    }
+    
+    Transfer[] transferRequests;
+    
+    mapping(address => uint) balance;
+    
+    
+    event depositDone(uint _amount, address indexed _depositedTo); 
+    event TransferRequestCreated(uint _id, uint amount, address _initiator, address _receiver);
+    event ApprovalReceived(uint _id, uint _approvals, address _approver);
+    event TransferApproved(uint _id);
+    
+    mapping(address => mapping(uint => bool)) approvals;
+    
+    
+    //Should initialize the owners list and the limit 
+    constructor(address[] memory _owners, uint _limit) {
+        owners = _owners;
+        limit = _limit;
+    }
+    
+    //Empty function (can be empty because you don't need to execute anything, just need a "payable" function)
+    function deposit() public payable returns (uint){
+        balance[msg.sender] += msg.value;
+        //call EVENT to be logged
+        emit depositDone(msg.value, msg.sender);
+        return balance[msg.sender];
+    }
+    
+    //Create an instance of the Transfer struct and add it to the transferRequests array
+    function createTransfer(uint _amount, address payable _receiver) public {
+        //Transfer struct takes arguments that coincide with all variables inside actual Transfer struct shown above^
+        //then, you transferRequest.push all of this so it gets added to the pending "transfer requests" array
+        emit TransferRequestCreated(transferRequests.length, _amount, msg.sender, _receiver);
+        transferRequests.push(
+            Transfer(_amount, msg.sender, _receiver, 0, false, transferRequests.length)
+            );
+        
+    }
+    
+    function _transfer(address _fromPerson, address _toPerson, uint _amount) private {
+        balance[_fromPerson] -= _amount;
+        balance[_toPerson] += _amount;
+        
+    }
+    
+    //Set your approval for one of the transfer requests.
+    //Need to update the Transfer object. (set approvals to a new number, set hasbeenSet if it was sent)
+    //Need to update the mapping to record the approval for the msg.sender.
+    //When the amount of approvals for a transfer has reached the limit, this function should send the transfer to the recipient.
+    //An owner should not be able to vote twice.
+    //An owner should not be able to vote on a tranfer request that has already been sent.
+    function approve(uint _id) public onlyOwners {
+        require(approvals[msg.sender][_id] == false); //basically saying that in order for this to GET approved, the msg.sender hasn't approved it yet
+        require(transferRequests[_id].hasBeenSent == false);
+        
+        approvals[msg.sender][_id] = true;
+        transferRequests[_id].approvals += 1;
+        
+        emit ApprovalReceived(_id, transferRequests[_id].approvals, msg.sender);
+        
+        if (transferRequests[_id].approvals >= limit){
+            transferRequests[_id].hasBeenSent = true;
+            transferRequests[_id].receiver.transfer(transferRequests[_id].amount); //.transfer is a built in function that sends spec amount
+            _transfer(transferRequests[_id].fromPerson, transferRequests[_id].receiver, transferRequests[_id].amount);
+            emit TransferApproved(_id);
+        
+        }
+        
+    }
+    
+    //Should return all transfer requests
+    function getTransferRequests() public view returns (Transfer[] memory){
+        return transferRequests;
+    }
+    
+    //get balance of msg.sender
+    function getUserBalance() public view returns (uint){
+        return balance[msg.sender];
+    }
+    
+    //Have a function that returns the balance of the entire contract
+    function getContractBalance() public view returns (uint){
+        return address(this).balance;
+    }
+    
+    
+}
+
+//Bugs to fix:
+    //FIXED//owner can approve same transaction more than one time
+    //FIXED// msg.sender of transfer doesn't lose balance value and recipient address balance doesn't increase in value)
+    //FIXED// only the owners can send a transfer, I want EVERYONE to be able to initiate a transfer
+    //FIXED// balance changes upon transfer initiaiton -> needs to wait for approval
