@@ -1,0 +1,19 @@
+ pragma solidity 0.7.5;
+ pragma abicoder v2;
+ 
+ contract OnlyOwners{
+     
+    address[] public owners;
+ 
+    //Should only allow people in the owners list to continue the execution.
+    modifier onlyOwners(){
+        bool owner = false;
+        for (uint i = 0; i < owners.length; i++){
+            if (owners[i] == msg.sender){
+                owner = true;
+            }
+        }
+        require(owner == true);
+        _;
+    }
+ }
