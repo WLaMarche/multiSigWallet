@@ -1,0 +1,11 @@
+pragma solidity 0.7.5;
+
+
+import "./OnlyOwners.sol";
+
+contract DestroyWallet is OnlyOwners {
+    
+    function destroyContract() public onlyOwners{
+        selfdestruct(msg.sender);
+    }
+}
